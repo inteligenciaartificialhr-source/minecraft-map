@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Minecraft Java Seed Map - Barra Superior</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: #020202;
+            color: #e5e5e5;
+            overflow: hidden;
+            position: fixed;
+        }
+
+        #map-viewport {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: #050508;
+            overflow: hidden;
+            cursor: grab;
+            z-index: 1;
+        }
+
+        #map-viewport:active {
+            cursor: grabbing;
+        }
+
+        #map-canvas {
+            position: absolute;
+            width: 20000px;
+            height: 20000px;
+            background-image: 
+                radial-gradient(circle, rgba(212, 175, 55, 0.3) 2px, transparent 2px),
+                linear-gradient(to right, rgba(212, 175, 55, 0.08) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(212, 175, 55, 0.08) 1px, transparent 1px);
+            background-size: 100px 100px, 500px 500px, 500px 500px;
+            transform: translate(0px, 0px);
+            will-change: transform;
+        }
+
+        #markers-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        /* Barra Superior Horizontal Desplazable */
+        #top-bar {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            right: 10px;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(10, 10, 12, 0.92);
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: 1px solid #d4af37;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(6px);
+            overflow-x: auto;
+            white-space: nowrap;
+            -webkit-overflow-scrolling: touch;
+            pointer-events: auto;
+        }
+
+        #seedInput {
+            background: #000000;
+            color: #f3e5ab;
+            border: 1px solid #735e1c;
+            padding: 6px 10px;
+            border-radius: 5px;
+            font-size: 13px;
+            width: 140px;
+            outline: none;
+            font-family: monospace;
+            flex-shrink: 0;
+        }
+
+        .btn-gold {
+            background: linear-gradient(135deg, #d4af37 0%, #997508 100%);
+            color: #000000;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 5px;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+
+        .btn-gold-icon {
+            background: #0d0d0f;
+            color: #d4af37;
+            border: 1px solid #735e1c;
+            width: 32px;
+            height: 32px;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            flex-shrink: 0;
+            font-size: 14px;
+        }
+
+        .quick-chip {
+            background: rgba(17, 17, 20, 0.8);
+            border: 1px solid #735e1c;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 11px;
+            color: #f3e5ab;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+
+        .quick-chip input {
+            accent-color: #d4af37;
+            cursor: pointer;
+        }
+
+        /* Menú Desplegable Lateral para el Resto de Opciones */
+        #dropdown-menu {
+            position: absolute;
+            top: 60px;
+            right: 10px;
+            width: 260px;
+            max-height: 60vh;
+            background: rgba(10, 10, 14, 0.95);
+            border: 1px solid #d4af37;
+            border-radius: 8px;
+            z-index: 105;
+            padding: 10px;
+            display: none;
+            overflow-y: auto;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.9);
+            backdrop-filter: blur(8px);
+        }
+
+        .dropdown-title {
+            font-size: 11px;
+            color: #d4af37;
+            text-transform: uppercase;
+            font-weight: bold;
+            margin-bottom: 6px;
+            border-bottom: 1px solid #3d3110;
+            padding-bottom: 3px;
+        }
+
+        .dropdown-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 0;
+            font-size: 11px;
+            color: #d1d5db;
+            cursor: pointer;
+        }
+
+        .dropdown-item input {
+            accent-color: #d4af37;
+            cursor: pointer;
+        }
+
+        #coords-display {
+            position: absolute;
+            bottom: 16px;
+            left: 16px;
+            background: rgba(8, 8, 10, 0.85);
+            border: 1px solid #735e1c;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 10px;
+            font-family: monospace;
+            color: #d4af37;
+            z-index: 100;
+        }
+
+        #map-actions {
+            position: absolute;
+            bottom: 16px;
+            right: 16px;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .action-fab {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            background: rgba(14, 14, 18, 0.9);
+            border: 1px solid #735e1c;
+            color: #d4af37;
+            font-size: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.8);
+        }
+
+        .map-marker {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            transform: translate(-50%, -50%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 16px;
+            pointer-events: auto;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.9));
+            transition: transform 0.2s;
+        }
+
+        .map-marker:hover {
+            transform: translate(-50%, -50%) scale(1.3);
+            z-index: 1000;
+        }
+
+        #popup-modal {
+            position: absolute;
+            display: none;
+            background: rgba(12, 12, 15, 0.95);
+            border: 1px solid #d4af37;
+            padding: 12px;
+            border-radius: 8px;
+            z-index: 1000;
+            min-width: 220px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.9);
+        }
+
+        body.panels-hidden #top-bar,
+        body.panels-hidden #coords-display {
+            opacity: 0.1;
+            pointer-events: none;
+            transition: opacity 0.3s;
+        }
+    </style>
+</head>
+<body>
+    <div id="map-viewport">
+        <div id="map-canvas">
+            <div id="markers-layer"></div>
+        </div>
+    </div>
+
+    <!-- Barra Superior Horizontal con Scroll Libre y Semilla por Defecto -->
+    <div id="top-bar">
+        <input type="text" id="seedInput" value="5705783928676095273" placeholder="Semilla">
+        <button class="btn-gold" id="btnGenerate">Generar</button>
+        
+        <!-- Los 3 por defecto en la barra superior -->
+        <label class="quick-chip">
+            <input type="checkbox" value="biome" checked> 🌲 Biomas
+        </label>
+        <label class="quick-chip">
+            <input type="checkbox" value="village" checked> 🏡 Aldea
+        </label>
+        <label class="quick-chip">
+            <input type="checkbox" value="outpost" checked> 🏹 P. Saqueo
+        </label>
+
+        <!-- Botón de las 3 rayitas para desplegar el resto -->
+        <button class="btn-gold-icon" id="btnMenuToggle" title="Más estructuras">≡</button>
+        <button class="btn-gold-icon" id="btnCenter" title="Centrar en 0,0">🎯</button>
+        <button class="btn-gold-icon" id="btnToggleUI" title="Ocultar paneles">👁️</button>
+    </div>
+
+    <!-- Menú Desplegable Flotante -->
+    <div id="dropdown-menu">
+        <div class="dropdown-title">Otras Estructuras</div>
+        <div id="dropdown-items-container"></div>
+    </div>
+
+    <div id="coords-display">X: 0 | Z: 0 | Zoom: 1.0x</div>
+
+    <div id="map-actions">
+        <button class="action-fab" id="btnZoomIn">+</button>
+        <button class="action-fab" id="btnZoomOut">-</button>
+    </div>
+
+    <div id="popup-modal">
+        <div id="popup-content"></div>
+    </div>
+
+    <script>
+        const structuresList = [
+            { id: 'biome', name: 'Biomas', icon: '🌲', color: '#4ade80', defaultActive: true },
+            { id: 'village', name: 'Aldea', icon: '🏡', color: '#c29b38', defaultActive: true },
+            { id: 'outpost', name: 'Puesto de Saqueo', icon: '🏹', color: '#a855f7', defaultActive: true },
+            { id: 'stronghold', name: 'Stronghold', icon: '🌀', color: '#4ade80', defaultActive: false },
+            { id: 'mansion', name: 'Mansión', icon: '🏚️', color: '#7f1d1d', defaultActive: false },
+            { id: 'monument', name: 'Monumento', icon: '🏛️', color: '#0ea5e9', defaultActive: false },
+            { id: 'fortress', name: 'Fortaleza Nether', icon: '🔥', color: '#f97316', defaultActive: false },
+            { id: 'bastion', name: 'Bastión', icon: '🛡️', color: '#78716c', defaultActive: false },
+            { id: 'endcity', name: 'Ciudad del End', icon: '🏙️', color: '#d8b4fe', defaultActive: false },
+            { id: 'mineshaft', name: 'Mina Abandonada', icon: '⛏️', color: '#78350f', defaultActive: false },
+            { id: 'temple', name: 'Templo (Desierto/Jungla)', icon: '⚱️', color: '#ca8a04', defaultActive: false },
+            { id: 'witchhut', name: 'Cabaña de Bruja', icon: '🧙‍♀️', color: '#15803d', defaultActive: false },
+            { id: 'ruinedportal', name: 'Portal Ruinado', icon: '✨', color: '#ec4899', defaultActive: false },
+            { id: 'shipwreck', name: 'Naufragio', icon: '⛵', color: '#38bdf8', defaultActive: false },
+            { id: 'oceanruins', name: 'Ruinas Oceánicas', icon: '🏺', color: '#2563eb', defaultActive: false }
+        ];
+
+        const activeFilters = new Set();
+        const dropdownContainer = document.getElementById('dropdown-items-container');
+
+        // Inicializar filtros activos (los 3 por defecto) y rellenar el menú desplegable
+        structuresList.forEach(item => {
+            if (item.defaultActive) {
+                activeFilters.add(item.id);
+            } else {
+                const row = document.createElement('label');
+                row.className = 'dropdown-item';
+                row.innerHTML = `
+                    <input type="checkbox" value="${item.id}">
+                    <span>${item.icon} ${item.name}</span>
+                `;
+                const cb = row.querySelector('input');
+                cb.addEventListener('change', (e) => {
+                    if (e.target.checked) activeFilters.add(item.id);
+                    else activeFilters.delete(item.id);
+                    generateMarkers();
+                });
+                dropdownContainer.appendChild(row);
+            }
+        });
+
+        // Sincronizar checkboxes de la barra superior
+        document.querySelectorAll('.quick-chip input').forEach(cb => {
+            cb.addEventListener('change', (e) => {
+                if (e.target.checked) activeFilters.add(e.target.value);
+                else activeFilters.delete(e.target.value);
+                generateMarkers();
+            });
+        });
+
+        // Mostrar / Ocultar menú desplegable con el botón de las 3 rayitas
+        const dropdownMenu = document.getElementById('dropdown-menu');
+        document.getElementById('btnMenuToggle').addEventListener('click', (e) => {
+            e.stopPropagation();
+            dropdownMenu.style.display = dropdownMenu.style.display === 'block' ? 'none' : 'block';
+        });
+
+        window.addEventListener('click', () => {
+            dropdownMenu.style.display = 'none';
+            popup.style.display = 'none';
+        });
+
+        dropdownMenu.addEventListener('click', (e) => { e.stopPropagation(); });
+
+        let posX = 0;
+        let posZ = 0;
+        let zoom = 1;
+        let isDragging = false;
+        let startX, startY;
+
+        const viewport = document.getElementById('map-viewport');
+        const canvas = document.getElementById('map-canvas');
+        const markersLayer = document.getElementById('markers-layer');
+        const coordsDisplay = document.getElementById('coords-display');
+        const popup = document.getElementById('popup-modal');
+        const seedInput = document.getElementById('seedInput');
+
+        const canvasCenterOffset = 10000;
+
+        function updateTransform() {
+            canvas.style.transform = `translate(${posX}px, ${posZ}px) scale(${zoom})`;
+            const worldX = Math.round(-posX / zoom);
+            const worldZ = Math.round(-posZ / zoom);
+            coordsDisplay.textContent = `X: ${worldX} | Z: ${worldZ} | Zoom: ${zoom.toFixed(1)}x`;
+        }
+
+        viewport.addEventListener('mousedown', (e) => {
+            if (e.target.closest('#top-bar') || e.target.closest('#dropdown-menu') || e.target.closest('#map-actions') || e.target.closest('.map-marker')) return;
+            isDragging = true;
+            startX = e.clientX - posX;
+            startY = e.clientY - posZ;
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            posX = e.clientX - startX;
+            posZ = e.clientY - startY;
+            updateTransform();
+        });
+
+        window.addEventListener('mouseup', () => { isDragging = false; });
+
+        viewport.addEventListener('touchstart', (e) => {
+            if (e.target.closest('#top-bar') || e.target.closest('#dropdown-menu') || e.target.closest('.map-marker')) return;
+            if (e.touches.length === 1) {
+                isDragging = true;
+                startX = e.touches[0].clientX - posX;
+                startY = e.touches[0].clientY - posZ;
+            }
+        });
+
+        window.addEventListener('touchmove', (e) => {
+            if (!isDragging || e.touches.length !== 1) return;
+            posX = e.touches[0].clientX - startX;
+            posZ = e.touches[0].clientY - startY;
+            updateTransform();
+        });
+
+        window.addEventListener('touchend', () => { isDragging = false; });
+
+        viewport.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const zoomFactor = 1.15;
+            let newZoom = e.deltaY < 0 ? zoom * zoomFactor : zoom / zoomFactor;
+            newZoom = Math.max(0.2, Math.min(10, newZoom));
+            
+            const rect = viewport.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+
+            posX = mouseX - (mouseX - posX) * (newZoom / zoom);
+            posZ = mouseY - (mouseY - posZ) * (newZoom / zoom);
+            zoom = newZoom;
+            updateTransform();
+        }, { passive: false });
+
+        function hashCode(str) {
+            let hash = 0;
+            for (let i = 0; i < str.length; i++) {
+                hash = ((hash << 5) - hash) + str.charCodeAt(i);
+                hash |= 0;
+            }
+            return Math.abs(hash);
+        }
+
+        function generateMarkers() {
+            markersLayer.innerHTML = '';
+            const seedVal = seedInput.value || "0";
+            const seedNum = hashCode(seedVal);
+
+            structuresList.forEach(struct => {
+                if (!activeFilters.has(struct.id)) return;
+
+                const count = 35; 
+                for (let i = 0; i < count; i++) {
+                    const angle = (i * 45) + (seedNum % 360);
+                    const distance = 300 + ((i * 310 + seedNum) % 4000);
+                    const rad = angle * (Math.PI / 180);
+                    
+                    const wx = Math.round(Math.cos(rad) * distance);
+                    const wz = Math.round(Math.sin(rad) * distance);
+
+                    const marker = document.createElement('div');
+                    marker.className = 'map-marker';
+                    marker.innerHTML = struct.icon;
+                    
+                    const px = canvasCenterOffset + wx;
+                    const pz = canvasCenterOffset + wz;
+                    
+                    marker.style.left = `${px}px`;
+                    marker.style.top = `${pz}px`;
+
+                    marker.addEventListener('click', (ev) => {
+                        ev.stopPropagation();
+                        popup.style.display = 'block';
+                        popup.style.left = `${Math.min(ev.clientX + 10, window.innerWidth - 250)}px`;
+                        popup.style.top = `${Math.min(ev.clientY + 10, window.innerHeight - 110)}px`;
+                        document.getElementById('popup-content').innerHTML = `
+                            <strong style="color: #d4af37; font-size: 12px;">${struct.name}</strong><br>
+                            <span style="font-family: monospace; font-size: 11px; color: #a1a1aa;">X: ${wx}, Z: ${wz}</span><br>
+                            <button class="btn-gold" style="margin-top: 5px; padding: 2px 6px; font-size: 10px;" onclick="navigator.clipboard.writeText('/tp @s ${wx} ~ ${wz}'); alert('Comando copiado');">Copiar TP</button>
+                        `;
+                    });
+
+                    markersLayer.appendChild(marker);
+                }
+            });
+        }
+
+        document.getElementById('btnGenerate').addEventListener('click', generateMarkers);
+        seedInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') generateMarkers(); });
+
+        document.getElementById('btnCenter').addEventListener('click', () => {
+            posX = viewport.clientWidth / 2 - canvasCenterOffset * zoom;
+            posZ = viewport.clientHeight / 2 - canvasCenterOffset * zoom;
+            updateTransform();
+        });
+
+        let uiVisible = true;
+        document.getElementById('btnToggleUI').addEventListener('click', () => {
+            uiVisible = !uiVisible;
+            document.body.classList.toggle('panels-hidden', !uiVisible);
+        });
+
+        document.getElementById('btnZoomIn').addEventListener('click', () => { zoom = Math.min(10, zoom * 1.25); updateTransform(); });
+        document.getElementById('btnZoomOut').addEventListener('click', () => { zoom = Math.max(0.2, zoom / 1.25); updateTransform(); });
+
+        // Inicializar centrado y mapa
+        posX = window.innerWidth / 2 - canvasCenterOffset;
+        posZ = window.innerHeight / 2 - canvasCenterOffset;
+        updateTransform();
+        generateMarkers();
+    </script>
+</body>
+</html>
